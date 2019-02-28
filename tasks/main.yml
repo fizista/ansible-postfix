@@ -165,7 +165,7 @@
 # https://github.com/fizista/ansible/blob/file_module/lib/ansible/modules/files/file.py
 - file:
     path: "{{ item }}"
-    modification_time: "{{ stat_sasl_passwd.stat.mtime }}"
+    modification_time: "{{ stat_aliases.stat.mtime }}"
     modification_time_format: "raw"
   with_list:
     - /etc/aliases.db
