@@ -2,7 +2,7 @@
 ---
 - name: facts | set
   set_fact:
-     is_docker_guest: "{{ ansible_virtualization_role | default('host') == 'guest' and ansible_virtualization_type | default('none') == 'docker' }}"
+    is_docker_guest: "{{ ansible_virtualization_role | default('host') == 'guest' and ansible_virtualization_type | default('none') == 'docker' }}"
   tags:
     - configuration
     - postfix
@@ -67,8 +67,50 @@
   when: postfix_relayhost != false
   no_log: true
   notify:
-    - postmap sasl_passwd
     - restart postfix
+  tags:
+    - configuration
+    - postfix
+    - postfix-sasl-passwd
+
+- stat:
+    path: /etc/postfix/sasl_passwd
+  register: stat_sasl_passwd
+  tags:
+    - configuration
+    - postfix
+    - postfix-sasl-passwd
+
+- stat:
+    path: /etc/postfix/sasl_passwd.db
+  register: stat_sasl_passwd_db
+  tags:
+    - configuration
+    - postfix
+    - postfix-sasl-passwd
+
+- name: postmap sasl_passwd
+  command: postmap hash:/etc/postfix/sasl_passwd
+  when:
+    - stat_sasl_passwd_db.stat.exists == false or stat_sasl_passwd_db.stat.mtime != stat_sasl_passwd.stat.mtime
+  tags:
+    - configuration
+    - postfix
+    - postfix-sasl-passwd
+
+# There is a problem with setting the exact time in nanoseconds under python 2.7.
+# This eliminates the problem by rounding the timestamp.
+# Works only with the following modified module, or maybe with ansible 2.8 or later
+# https://github.com/fizista/ansible/blob/file_module/lib/ansible/modules/files/file.py
+- file:
+    path: "{{ item }}"
+    modification_time: "{{ stat_sasl_passwd.stat.mtime }}"
+    modification_time_format: "raw"
+  with_list:
+    - /etc/postfix/sasl_passwd.db
+    - /etc/postfix/sasl_passwd
+  when:
+    - stat_sasl_passwd_db.stat.mtime != stat_sasl_passwd.stat.mtime
   tags:
     - configuration
     - postfix
@@ -86,8 +128,50 @@
     state: present
   with_items: "{{ postfix_aliases }}"
   notify:
-    - new aliases
     - restart postfix
+  tags:
+    - configuration
+    - postfix
+    - postfix-aliases
+
+- stat:
+    path: /etc/aliases
+  register: stat_aliases
+  tags:
+    - configuration
+    - postfix
+    - postfix-aliases
+
+- stat:
+    path: /etc/aliases.db
+  register: stat_aliases_db
+  tags:
+    - configuration
+    - postfix
+    - postfix-aliases
+
+- name: new aliases
+  command: newaliases
+  when:
+    - stat_aliases_db.stat.exists == false or stat_aliases_db.stat.mtime != stat_aliases.stat.mtime
+  tags:
+    - configuration
+    - postfix
+    - postfix-aliases
+
+# There is a problem with setting the exact time in nanoseconds under python 2.7.
+# This eliminates the problem by rounding the timestamp.
+# Works only with the following modified module, or maybe with ansible 2.8 or later
+# https://github.com/fizista/ansible/blob/file_module/lib/ansible/modules/files/file.py
+- file:
+    path: "{{ item }}"
+    modification_time: "{{ stat_sasl_passwd.stat.mtime }}"
+    modification_time_format: "raw"
+  with_list:
+    - /etc/aliases.db
+    - /etc/aliases
+  when:
+    - stat_aliases_db.stat.mtime != stat_aliases.stat.mtime
   tags:
     - configuration
     - postfix
